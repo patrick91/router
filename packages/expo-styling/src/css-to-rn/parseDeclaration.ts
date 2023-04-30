@@ -814,11 +814,11 @@ export function parseDeclaration(
       );
       return;
     case "margin":
-      addStyleProp("marginTop", parseSize(declaration.value.top, options));
-      addStyleProp("marginLeft", parseSize(declaration.value.left, options));
-      addStyleProp("marginRigth", parseSize(declaration.value.right, options));
+      addStyleProp("margin-top", parseSize(declaration.value.top, options));
+      addStyleProp("margin-left", parseSize(declaration.value.left, options));
+      addStyleProp("margin-right", parseSize(declaration.value.right, options));
       addStyleProp(
-        "marginBottom",
+        "margin-bottom",
         parseSize(declaration.value.bottom, options)
       );
       return;
@@ -887,9 +887,12 @@ export function parseDeclaration(
       );
       break;
     case "padding":
-      addStyleProp("paddingTop", parseSize(declaration.value.top, options));
-      addStyleProp("paddingLeft", parseSize(declaration.value.left, options));
-      addStyleProp("paddingRigth", parseSize(declaration.value.right, options));
+      addStyleProp("padding-top", parseSize(declaration.value.top, options));
+      addStyleProp("padding-left", parseSize(declaration.value.left, options));
+      addStyleProp(
+        "padding-right",
+        parseSize(declaration.value.right, options)
+      );
       addStyleProp(
         "paddingBottom",
         parseSize(declaration.value.bottom, options)

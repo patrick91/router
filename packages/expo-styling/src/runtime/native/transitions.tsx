@@ -6,9 +6,9 @@ import {
   withTiming,
 } from "react-native-reanimated";
 
+import { Style } from "../../types";
 import { styleMetaMap } from "./globals";
 import { cssTimeToNumber } from "./utils";
-import { Style } from "../../types";
 
 export function useTransitions(style: Style) {
   const transition = styleMetaMap.get(style)?.transition;
@@ -113,16 +113,19 @@ export function useTransitions(style: Style) {
           });
           ref.current = [ref.current[1], value];
         }
-        dependencies.push(progress);
-        animationTuples.push([
-          prop,
-          (value: number) => interpolateColor(value, [0, 1], ref.current),
-        ]);
+        if (value !== undefined) {
+          dependencies.push(progress);
+          animationTuples.push([
+            prop,
+            (value: number) => interpolateColor(value, [0, 1], ref.current),
+          ]);
+        }
         /* eslint-enable react-hooks/rules-of-hooks */
         break;
       }
     }
   }
+
   return useAnimatedStyle(() => {
     const style: Record<string, unknown> = {};
     for (const [index, [prop, transform]] of animationTuples.entries()) {

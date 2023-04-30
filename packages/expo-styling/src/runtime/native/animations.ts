@@ -226,7 +226,7 @@ const transformKeys = Object.keys({
   skewX: 1,
   skewY: 1,
   scale: 1,
-} satisfies Record<Exclude<keyof TransformRecord, "matrix">, 1>);
+});
 
 function getAnimationValue<T>(
   array: T[] | undefined,

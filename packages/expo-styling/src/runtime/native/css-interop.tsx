@@ -1,4 +1,5 @@
 import React, { ComponentType, useEffect, useReducer } from "react";
+import Animated from "react-native-reanimated";
 
 import { ContainerRuntime, Interaction, Style } from "../../types";
 import { useAnimations } from "./animations";
@@ -193,7 +194,7 @@ const CSSInteropWrapper = React.forwardRef(function CSSInteropWrapper(
 
   if (animatedProps.length > 0) {
     return (
-      <Animated
+      <AnimationInterop
         {...props}
         ref={ref}
         __component={Component}
@@ -204,7 +205,7 @@ const CSSInteropWrapper = React.forwardRef(function CSSInteropWrapper(
         __skipCssInterop
       >
         {children}
-      </Animated>
+      </AnimationInterop>
     );
   } else if (transitionProps.length > 0) {
     return (
@@ -243,14 +244,17 @@ type WrapperProps = Record<string, unknown> & {
   __propEntries: [string, Style][];
 };
 
-function Animated({
-  __component: Component,
-  __propEntries,
-  __interaction,
-  __variables,
-  __containers,
-  ...props
-}: WrapperProps) {
+const AnimationInterop = React.forwardRef(function Animated(
+  {
+    __component: Component,
+    __propEntries,
+    __interaction,
+    __variables,
+    __containers,
+    ...props
+  }: WrapperProps,
+  ref: unknown
+) {
   /* eslint-disable react-hooks/rules-of-hooks */
   for (const [name, style] of __propEntries) {
     props[name] = useAnimations(style, {
@@ -261,25 +265,30 @@ function Animated({
   }
   /* eslint-enable react-hooks/rules-of-hooks */
 
-  return <Component {...props} />;
-}
+  return <Component ref={ref} {...props} />;
+});
 
-function Transitionable({
-  __component: Component,
-  __propEntries,
-  __interaction,
-  __variables,
-  __containers,
-  ...props
-}: WrapperProps) {
+const Transitionable = React.forwardRef(function Transitionable(
+  {
+    __component: Component,
+    __propEntries,
+    __interaction,
+    __variables,
+    __containers,
+    ...props
+  }: WrapperProps,
+  ref: unknown
+) {
+  // Component = createAnimatedComponent(Component);
+
   /* eslint-disable react-hooks/rules-of-hooks */
   for (const [name, style] of __propEntries) {
     props[name] = useTransitions(style);
   }
   // console.log(props.style);
   /* eslint-enable react-hooks/rules-of-hooks */
-  return <Component {...props} />;
-}
+  return <Component ref={ref} {...props} />;
+});
 
 function classNameToStyle(props: any) {
   if (typeof props.className === "string") {
@@ -317,4 +326,25 @@ function areStylesDynamic(style: any) {
   }
 
   return false;
+}
+
+function createAnimatedComponent(Component: ComponentType<unknown>) {
+  if (Component.displayName?.startsWith("AnimatedComponent")) {
+    return Component;
+  }
+
+  if (
+    !(
+      typeof Component !== "function" ||
+      (Component.prototype && Component.prototype.isReactComponent)
+    )
+  ) {
+    throw new Error(
+      `Looks like you're passing an animation style to a function component \`${Component.name}\`. Please wrap your function component with \`React.forwardRef()\` or use a class component instead.`
+    );
+  }
+
+  console.log(Component);
+
+  return Animated.createAnimatedComponent(Component as React.ComponentClass);
 }
