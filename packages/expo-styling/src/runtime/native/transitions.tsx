@@ -12,10 +12,12 @@ import { cssTimeToNumber } from "./utils";
 
 export function useTransitions(style: Style) {
   const transition = styleMetaMap.get(style)?.transition;
+
   const previous = useRef<Record<string, any>>({ ...style });
 
   const dependencies: any[] = [];
-  const animationTuples: any[] = [];
+  const numericTuples: any[] = [];
+  const colorTuples: any[] = [];
   const properties = transition?.property || [];
 
   for (let index = 0; index < properties.length; index++) {
@@ -90,7 +92,7 @@ export function useTransitions(style: Style) {
           previous.current[prop] = to;
         }
         dependencies.push(progress);
-        animationTuples.push([prop, (value: number) => value]);
+        numericTuples.push([prop, (value: number) => value]);
         /* eslint-enable react-hooks/rules-of-hooks */
         break;
       }
@@ -99,12 +101,16 @@ export function useTransitions(style: Style) {
       case "borderLeftColor":
       case "borderRightColor":
       case "borderTopColor":
+        break;
       case "color": {
         /* eslint-disable react-hooks/rules-of-hooks */
-        const $style = style as Record<string, string>;
-        const value = $style[prop];
+        const value = style[prop as keyof Style] as string;
         const progress = useSharedValue<number>(0);
         const ref = useRef<[string, string]>([value, value]);
+
+        if (value === undefined) {
+          break;
+        }
 
         if (ref.current[0] !== value) {
           progress.value = 0;
@@ -113,24 +119,25 @@ export function useTransitions(style: Style) {
           });
           ref.current = [ref.current[1], value];
         }
-        if (value !== undefined) {
-          dependencies.push(progress);
-          animationTuples.push([
-            prop,
-            (value: number) => interpolateColor(value, [0, 1], ref.current),
-          ]);
-        }
-        /* eslint-enable react-hooks/rules-of-hooks */
+
+        colorTuples.push([prop, progress, ref.current]);
         break;
+        /* eslint-enable react-hooks/rules-of-hooks */
       }
     }
   }
 
-  return useAnimatedStyle(() => {
-    const style: Record<string, unknown> = {};
-    for (const [index, [prop, transform]] of animationTuples.entries()) {
-      style[prop] = transform(dependencies[index].value);
-    }
-    return style;
-  }, dependencies);
+  // return style;
+
+  return [
+    style,
+    useAnimatedStyle(() => {
+      const style: Record<string, unknown> = {};
+      for (let index = 0; index < colorTuples.length; index++) {
+        const [prop, progress, ref] = colorTuples[index];
+        style[prop] = interpolateColor(progress.value, [0, 1], ref);
+      }
+      return style;
+    }, [...colorTuples]),
+  ];
 }

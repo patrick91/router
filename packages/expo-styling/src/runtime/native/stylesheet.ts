@@ -5,6 +5,12 @@ import {
 } from "react-native";
 
 import {
+  StyleSheetRegisterOptions,
+  ExtractedStyle,
+  StyleProp,
+  StyleMeta,
+} from "../../types";
+import {
   animationMap,
   colorScheme,
   globalStyles,
@@ -13,12 +19,6 @@ import {
   vh,
   vw,
 } from "./globals";
-import {
-  StyleSheetRegisterOptions,
-  ExtractedStyle,
-  StyleProp,
-  StyleMeta,
-} from "../../types";
 
 const subscriptions = new Set<() => void>();
 

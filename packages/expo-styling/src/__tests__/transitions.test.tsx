@@ -13,7 +13,7 @@ beforeEach(() => {
   StyleSheet.__reset();
 });
 
-test.only("numeric transition", () => {
+test("numeric transition", () => {
   registerCSS(`
     .transition {
       transition: width 1s;

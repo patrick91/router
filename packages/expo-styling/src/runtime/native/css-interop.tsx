@@ -209,7 +209,7 @@ const CSSInteropWrapper = React.forwardRef(function CSSInteropWrapper(
     );
   } else if (transitionProps.length > 0) {
     return (
-      <Transitionable
+      <TransitionInterop
         {...props}
         ref={ref}
         __component={Component}
@@ -220,7 +220,7 @@ const CSSInteropWrapper = React.forwardRef(function CSSInteropWrapper(
         __skipCssInterop
       >
         {children}
-      </Transitionable>
+      </TransitionInterop>
     );
   } else {
     return (
@@ -264,11 +264,10 @@ const AnimationInterop = React.forwardRef(function Animated(
     });
   }
   /* eslint-enable react-hooks/rules-of-hooks */
-
   return <Component ref={ref} {...props} />;
 });
 
-const Transitionable = React.forwardRef(function Transitionable(
+const TransitionInterop = React.forwardRef(function Transitionable(
   {
     __component: Component,
     __propEntries,
@@ -279,7 +278,7 @@ const Transitionable = React.forwardRef(function Transitionable(
   }: WrapperProps,
   ref: unknown
 ) {
-  // Component = createAnimatedComponent(Component);
+  Component = createAnimatedComponent(Component);
 
   /* eslint-disable react-hooks/rules-of-hooks */
   for (const [name, style] of __propEntries) {
@@ -328,8 +327,15 @@ function areStylesDynamic(style: any) {
   return false;
 }
 
+const animatedCache = new WeakMap<
+  ComponentType<unknown>,
+  React.ComponentClass<Animated.AnimateProps<object>, any>
+>();
+
 function createAnimatedComponent(Component: ComponentType<unknown>) {
-  if (Component.displayName?.startsWith("AnimatedComponent")) {
+  if (animatedCache.has(Component)) {
+    return animatedCache.get(Component)!;
+  } else if (Component.displayName?.startsWith("AnimatedComponent")) {
     return Component;
   }
 
@@ -344,7 +350,11 @@ function createAnimatedComponent(Component: ComponentType<unknown>) {
     );
   }
 
-  console.log(Component);
+  const AnimatedComponent = Animated.createAnimatedComponent(
+    Component as React.ComponentClass
+  );
 
-  return Animated.createAnimatedComponent(Component as React.ComponentClass);
+  animatedCache.set(Component, AnimatedComponent);
+
+  return AnimatedComponent;
 }

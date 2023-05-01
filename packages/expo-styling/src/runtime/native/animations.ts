@@ -28,14 +28,11 @@ export function useAnimations(style: Style, options: FlattenStyleOptions) {
     return;
   }
 
-  const $style = { ...style };
+  const $style = [style];
 
   /* eslint-disable react-hooks/rules-of-hooks */
   for (let index = 0; index < styleMetadata?.animations?.name.length; index++) {
-    Object.assign(
-      $style,
-      useAnimation(styleMetadata.animations, index, options)
-    );
+    $style.push(useAnimation(styleMetadata.animations, index, options));
   }
   /* eslint-enable react-hooks/rules-of-hooks */
 

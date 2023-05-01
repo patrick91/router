@@ -57,15 +57,15 @@ export function flattenStyle(
 
   if (styleMeta.animations) {
     flatStyleMeta.animations = {
-      ...flatStyleMeta.animations,
       ...styleMeta.animations,
+      ...flatStyleMeta.animations,
     };
   }
 
   if (styleMeta.transition) {
     flatStyleMeta.transition = {
-      ...flatStyleMeta.transition,
       ...styleMeta.transition,
+      ...flatStyleMeta.transition,
     };
   }
 
