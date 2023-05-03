@@ -26,7 +26,9 @@ export function createMockComponent(
 ): ForwardRefExoticComponent<
   MockComponentProps & RefAttributes<MockComponentProps>
 > {
-  const component = jest.fn((props, ref) => <Component ref={ref} {...props} />);
+  const component = Object.assign(
+    jest.fn((props, ref) => <Component ref={ref} {...props} />)
+  );
   const b = React.forwardRef(component);
 
   const componentWithRef = React.forwardRef<MockComponentProps>(
@@ -42,7 +44,9 @@ export function createMockComponent(
     }
   );
 
-  Object.assign(componentWithRef, { component });
+  Object.assign(componentWithRef, {
+    component,
+  });
 
   return componentWithRef;
 }

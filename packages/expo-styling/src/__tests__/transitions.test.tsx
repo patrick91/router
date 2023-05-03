@@ -1,11 +1,12 @@
 import { render } from "@testing-library/react-native";
 import React from "react";
-import Animated from "react-native-reanimated";
+import { View } from "react-native";
+// import Animated from "react-native-reanimated";
 
 import { StyleSheet } from "../runtime/native/stylesheet";
 import { createMockComponent, registerCSS } from "./utils";
 
-const A = createMockComponent(Animated.View);
+const A = createMockComponent(View);
 
 jest.useFakeTimers();
 

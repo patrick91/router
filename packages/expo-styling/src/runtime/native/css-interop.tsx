@@ -1,19 +1,17 @@
 import React, { ComponentType, useEffect, useReducer } from "react";
-import Animated from "react-native-reanimated";
 
-import { ContainerRuntime, Interaction, Style } from "../../types";
-import { useAnimations } from "./animations";
+import { ContainerRuntime, Style } from "../../types";
+import { AnimationInterop } from "./animations";
 import { flattenStyle } from "./flattenStyle";
 import {
   ContainerContext,
   VariableContext,
-  getGlobalStyles,
+  globalStyles,
   styleMetaMap,
 } from "./globals";
 import { useInteractionHandlers, useInteractionSignals } from "./interaction";
-import { createComputation } from "./signals";
+import { useComputation } from "./signals";
 import { StyleSheet } from "./stylesheet";
-import { useTransitions } from "./transitions";
 import { useDynamicMemo } from "./utils";
 
 export type CSSInteropWrapperProps = {
@@ -28,6 +26,10 @@ export function defaultCSSInterop(
   { ...props }: any,
   key: string
 ) {
+  /*
+   * Most styles are static so the CSSInteropWrapper is not needed
+   */
+
   props.__component = type;
   props.__styleKeys = ["style"];
 
@@ -41,14 +43,9 @@ export function defaultCSSInterop(
 
   classNameToStyle(props);
 
-  /*
-   * Most styles are static so the CSSInteropWrapper is not needed
-   */
-  if (!areStylesDynamic(props.style)) {
-    return jsx(type, props, key);
-  }
-
-  return jsx(CSSInteropWrapper, props, key);
+  return areStylesDynamic(props.style)
+    ? jsx(CSSInteropWrapper, props, key)
+    : jsx(type, props, key);
 }
 
 /**
@@ -66,11 +63,7 @@ const DevOnlyCSSInteropWrapper = React.forwardRef(
 
     classNameToStyle(props);
 
-    if (!areStylesDynamic(props.style)) {
-      return <Component {...props} ref={ref} __skipCssInterop />;
-    }
-
-    return (
+    return areStylesDynamic(props.style) ? (
       <CSSInteropWrapper
         {...props}
         ref={ref}
@@ -78,6 +71,8 @@ const DevOnlyCSSInteropWrapper = React.forwardRef(
         __styleKeys={__styleKeys}
         __skipCssInterop
       />
+    ) : (
+      <Component {...props} ref={ref} __skipCssInterop />
     );
   }
 );
@@ -91,64 +86,52 @@ const CSSInteropWrapper = React.forwardRef(function CSSInteropWrapper(
   const inheritedContainers = React.useContext(ContainerContext);
 
   const inlineVariables: Record<string, unknown>[] = [];
-  let inlineContainers: Record<string, ContainerRuntime> | undefined;
+  const inlineContainers: Record<string, ContainerRuntime> | undefined = {};
   const interaction = useInteractionSignals();
 
   const propEntries: [string, Style][] = [];
   const animatedProps: string[] = [];
   const transitionProps: string[] = [];
 
-  /* eslint-disable react-hooks/rules-of-hooks -- __styleKeys is consistent an immutable */
+  /* eslint-disable react-hooks/rules-of-hooks -- __styleKeys is immutable */
   for (const key of __styleKeys) {
     /*
      * Create a computation that will flatten the style object. Any signals read while the computation
      * is running will be subscribed to.
      */
-    const computation = React.useMemo(
+    const style = useComputation(
       () =>
-        createComputation(() =>
-          flattenStyle($props[key], {
-            interaction,
-            variables: inheritedVariables,
-            containers: inheritedContainers,
-          })
-        ),
-      [$props[key], inheritedVariables]
+        flattenStyle($props[key], {
+          interaction,
+          variables: inheritedVariables,
+          containers: inheritedContainers,
+        }),
+      [$props[key], inheritedVariables, inheritedContainers],
+      rerender
     );
-    useEffect(() => computation.subscribe(rerender), [computation]);
-    const style = computation.snapshot();
-    propEntries.push([key, style]);
 
     const meta = styleMetaMap.get(style);
+    propEntries.push([key, style]);
 
-    if (meta) {
-      if (meta.variables) {
-        inlineVariables.push(meta.variables);
-      }
-      if (meta.container) {
-        inlineContainers ??= {};
-        if (meta.container.names) {
-          for (const name of meta.container.names) {
-            inlineContainers[name] = {
-              type: meta.container.type,
-              interaction,
-              style,
-            };
-          }
+    if (meta?.variables) inlineVariables.push(meta.variables);
+    if (meta?.animations) animatedProps.push(key);
+    if (meta?.transition) transitionProps.push(key);
+    if (meta?.container) {
+      if (meta.container.names) {
+        for (const name of meta.container.names) {
+          inlineContainers[name] = {
+            type: meta.container.type,
+            interaction,
+            style,
+          };
         }
+      }
 
-        inlineContainers.__default = {
-          type: meta.container.type,
-          interaction,
-          style,
-        };
-      }
-      if (meta.animations) {
-        animatedProps.push(key);
-      }
-      if (meta.transition) {
-        transitionProps.push(key);
-      }
+      inlineContainers.__default = {
+        type: meta.container.type,
+        interaction,
+        style,
+      };
     }
   }
   /* eslint-enable react-hooks/rules-of-hooks */
@@ -158,7 +141,7 @@ const CSSInteropWrapper = React.forwardRef(function CSSInteropWrapper(
     [inheritedVariables, ...inlineVariables]
   );
 
-  const inlineContainerValues = Object.values(inlineContainers ?? {});
+  const inlineContainerValues = Object.values(inlineContainers);
   const containers = useDynamicMemo(
     () => Object.assign({}, inheritedContainers, inlineContainers),
     [inheritedContainers, ...inlineContainerValues]
@@ -192,7 +175,7 @@ const CSSInteropWrapper = React.forwardRef(function CSSInteropWrapper(
     );
   }
 
-  if (animatedProps.length > 0) {
+  if (animatedProps.length > 0 || transitionProps.length > 0) {
     return (
       <AnimationInterop
         {...props}
@@ -202,25 +185,12 @@ const CSSInteropWrapper = React.forwardRef(function CSSInteropWrapper(
         __variables={variables}
         __containers={inheritedContainers}
         __interaction={interaction}
+        __hasAnimation={animatedProps.length > 0}
+        __hasTransition={transitionProps.length > 0}
         __skipCssInterop
       >
         {children}
       </AnimationInterop>
-    );
-  } else if (transitionProps.length > 0) {
-    return (
-      <TransitionInterop
-        {...props}
-        ref={ref}
-        __component={Component}
-        __propEntries={propEntries}
-        __variables={variables}
-        __containers={inheritedContainers}
-        __interaction={interaction}
-        __skipCssInterop
-      >
-        {children}
-      </TransitionInterop>
     );
   } else {
     return (
@@ -236,62 +206,11 @@ const CSSInteropWrapper = React.forwardRef(function CSSInteropWrapper(
   }
 });
 
-type WrapperProps = Record<string, unknown> & {
-  __component: ComponentType<any>;
-  __interaction: Interaction;
-  __variables: Record<string, unknown>;
-  __containers: Record<string, ContainerRuntime>;
-  __propEntries: [string, Style][];
-};
-
-const AnimationInterop = React.forwardRef(function Animated(
-  {
-    __component: Component,
-    __propEntries,
-    __interaction,
-    __variables,
-    __containers,
-    ...props
-  }: WrapperProps,
-  ref: unknown
-) {
-  /* eslint-disable react-hooks/rules-of-hooks */
-  for (const [name, style] of __propEntries) {
-    props[name] = useAnimations(style, {
-      variables: __variables,
-      interaction: __interaction,
-      containers: __containers,
-    });
-  }
-  /* eslint-enable react-hooks/rules-of-hooks */
-  return <Component ref={ref} {...props} />;
-});
-
-const TransitionInterop = React.forwardRef(function Transitionable(
-  {
-    __component: Component,
-    __propEntries,
-    __interaction,
-    __variables,
-    __containers,
-    ...props
-  }: WrapperProps,
-  ref: unknown
-) {
-  Component = createAnimatedComponent(Component);
-
-  /* eslint-disable react-hooks/rules-of-hooks */
-  for (const [name, style] of __propEntries) {
-    props[name] = useTransitions(style);
-  }
-  // console.log(props.style);
-  /* eslint-enable react-hooks/rules-of-hooks */
-  return <Component ref={ref} {...props} />;
-});
-
-function classNameToStyle(props: any) {
+function classNameToStyle(props: Record<string, unknown>) {
   if (typeof props.className === "string") {
-    const classNameStyle = getGlobalStyles(props.className);
+    const classNameStyle = props.className
+      .split(/\s+/)
+      .map((s) => globalStyles.get(s));
 
     props.style = Array.isArray(props.style)
       ? [...classNameStyle, ...props.style]
@@ -325,36 +244,4 @@ function areStylesDynamic(style: any) {
   }
 
   return false;
-}
-
-const animatedCache = new WeakMap<
-  ComponentType<unknown>,
-  React.ComponentClass<Animated.AnimateProps<object>, any>
->();
-
-function createAnimatedComponent(Component: ComponentType<unknown>) {
-  if (animatedCache.has(Component)) {
-    return animatedCache.get(Component)!;
-  } else if (Component.displayName?.startsWith("AnimatedComponent")) {
-    return Component;
-  }
-
-  if (
-    !(
-      typeof Component !== "function" ||
-      (Component.prototype && Component.prototype.isReactComponent)
-    )
-  ) {
-    throw new Error(
-      `Looks like you're passing an animation style to a function component \`${Component.name}\`. Please wrap your function component with \`React.forwardRef()\` or use a class component instead.`
-    );
-  }
-
-  const AnimatedComponent = Animated.createAnimatedComponent(
-    Component as React.ComponentClass
-  );
-
-  animatedCache.set(Component, AnimatedComponent);
-
-  return AnimatedComponent;
 }

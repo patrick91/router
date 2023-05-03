@@ -21,14 +21,14 @@ function useDynamicDependancies(value: React.DependencyList) {
     ref.current = value;
   }
 
-  return ref.current;
+  return [ref.current];
 }
 
 export function useDynamicMemo<T>(
   factory: () => T,
   value: React.DependencyList
 ) {
-  return React.useMemo(factory, [useDynamicDependancies(value)]);
+  return React.useMemo(factory, useDynamicDependancies(value));
 }
 
 export function cssTimeToNumber(time: Time) {
