@@ -12,7 +12,7 @@ beforeEach(() => {
   StyleSheet.__reset();
 });
 
-test.only("basic animation", () => {
+test("basic animation", () => {
   registerCSS(`
 .my-class {
   animation-duration: 3s;
@@ -48,5 +48,76 @@ test.only("basic animation", () => {
 
   expect(testComponent).toHaveAnimatedStyle({
     marginLeft: "0%",
+  });
+});
+
+test("single frame", () => {
+  registerCSS(`
+    .my-class {
+      animation-duration: 3s;
+      animation-name: spin;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+`);
+
+  const testComponent = render(
+    <A testID="test" className="my-class" />
+  ).getByTestId("test");
+
+  expect(testComponent).toHaveAnimatedStyle({
+    transform: [{ rotate: "0deg" }],
+  });
+
+  jest.advanceTimersByTime(1500);
+
+  expect(testComponent).toHaveAnimatedStyle({
+    transform: [{ rotate: "180deg" }],
+  });
+
+  jest.advanceTimersByTime(1500);
+
+  expect(testComponent).toHaveAnimatedStyle({
+    transform: [{ rotate: "360deg" }],
+  });
+});
+
+test("transform - starting", () => {
+  registerCSS(`
+    .my-class {
+      animation-duration: 3s;
+      animation-name: spin;
+      transform: rotate(180deg);
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+`);
+
+  const testComponent = render(
+    <A testID="test" className="my-class" />
+  ).getByTestId("test");
+
+  expect(testComponent).toHaveAnimatedStyle({
+    transform: [{ rotate: "180deg" }],
+  });
+
+  jest.advanceTimersByTime(1500);
+
+  expect(testComponent).toHaveAnimatedStyle({
+    transform: [{ rotate: "270deg" }],
+  });
+
+  jest.advanceTimersByTime(1500);
+
+  expect(testComponent).toHaveAnimatedStyle({
+    transform: [{ rotate: "360deg" }],
   });
 });

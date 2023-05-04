@@ -1,3 +1,4 @@
+import { AnimationName } from "lightningcss";
 import React, { ComponentType, useEffect, useRef, forwardRef } from "react";
 import { View, Text } from "react-native";
 import Animated, {
@@ -12,18 +13,21 @@ import Animated, {
 
 import {
   ContainerRuntime,
+  ExtractedAnimation,
   ExtractedAnimations,
   Interaction,
   Style,
   StyleProp,
 } from "../../types";
-import { FlattenStyleOptions } from "./flattenStyle";
+import { flattenStyle, FlattenStyleOptions } from "./flattenStyle";
 import { animationMap, styleMetaMap } from "./globals";
 import {
   cssCountToNumber,
   cssTimeToNumber,
   cssTimingFunctionToEasing,
 } from "./utils";
+
+const defaultAnimation: ExtractedAnimation = { frames: [] };
 
 export interface AnimationStylesWrapperProps {
   component: ComponentType<any>;
@@ -89,6 +93,7 @@ const animatedCache = new WeakMap<ComponentType<any>, ComponentType<any>>([
   [Animated.View, Animated.View],
   [Text, Animated.Text],
   [Animated.Text, Animated.Text],
+  [Text, Animated.Text],
 ]);
 
 export function createAnimatedComponent(
@@ -125,16 +130,19 @@ export function useAnimations(
   options: FlattenStyleOptions
 ): StyleProp {
   const styleMetadata = styleMetaMap.get(style);
+  const animations = styleMetadata?.animations;
+  const names = animations?.name;
 
-  if (!styleMetadata?.animations?.name) {
+  if (!animations || !names) {
     return style;
   }
 
   const $style = [];
+  options = { ...options, syncOnly: true };
 
   /* eslint-disable react-hooks/rules-of-hooks */
-  for (let index = 0; index < styleMetadata?.animations?.name.length; index++) {
-    $style.push(useAnimation(styleMetadata.animations, index, options));
+  for (let index = 0; index < names.length; index++) {
+    $style.push(useAnimation(names[index], animations, style, index, options));
   }
   /* eslint-enable react-hooks/rules-of-hooks */
 
@@ -142,36 +150,38 @@ export function useAnimations(
 }
 
 function useAnimation(
+  animationName: AnimationName,
   animations: ExtractedAnimations,
+  $style: Style,
   index: number,
-  _options: FlattenStyleOptions
+  options: FlattenStyleOptions
 ) {
-  const animationName = getAnimationValue(animations.name, index, {
-    type: "none",
-  });
+  // This keeps track of the progress across all frames
+  const animatedFrameIndex = useSharedValue(0);
 
   const name = animationName.type === "none" ? "none" : animationName.value;
 
-  const direction = getAnimationValue(animations.direction, index, "normal");
+  const fillMode = getValue(animations.fillMode, index, "none");
+  const direction = getValue(animations.direction, index, "normal");
   const duration = cssTimeToNumber(
-    getAnimationValue(animations.duration, index, { type: "seconds", value: 0 })
+    getValue(animations.duration, index, { type: "seconds", value: 0 })
   );
   const timingFunction = cssTimingFunctionToEasing(
-    getAnimationValue(animations.timingFunction, index, { type: "linear" })
+    getValue(animations.timingFunction, index, { type: "linear" })
   );
   const iterationCount = cssCountToNumber(
-    getAnimationValue(animations.iterationCount, index, {
+    getValue(animations.iterationCount, index, {
       type: "number",
       value: 1,
     })
   );
 
-  const fillMode = getAnimationValue(animations.fillMode, index, "none");
-
-  // This keeps track of the progress across all frames
-  const animatedFrameIndex = useSharedValue(0);
-
-  const keyframes = animationMap.get(name) ?? [];
+  const keyframes = (animationMap.get(name) ?? defaultAnimation).frames.map(
+    (frame) => ({
+      ...frame,
+      style: flattenStyle(frame.style, options),
+    })
+  );
 
   useEffect(() => {
     // Restart the animation anytime any of the animation's properties change
@@ -224,6 +234,41 @@ function useAnimation(
   }, [keyframes, duration, timingFunction, iterationCount]);
 
   return useAnimatedStyle(() => {
+    function interpolateWithUnits(
+      progress: number,
+      from: unknown = 0,
+      to: unknown = 0
+    ) {
+      if (typeof from === "number" && typeof to === "number") {
+        return interpolate(progress, [0, 1], [from, to]);
+      } else if (
+        (typeof from === "string" && typeof to === "string") ||
+        (typeof from === "string" && to === 0)
+      ) {
+        const unit = from.match(/[a-z%]+$/)?.[0];
+
+        if (unit) {
+          return `${interpolate(
+            progress,
+            [0, 1],
+            [Number.parseFloat(from), Number.parseFloat(to.toString())]
+          )}${unit}`;
+        }
+      } else if (typeof to === "string" && from === 0) {
+        const unit = to.match(/[a-z%]+$/)?.[0];
+
+        if (unit) {
+          return `${interpolate(
+            progress,
+            [0, 1],
+            [from, Number.parseFloat(to)]
+          )}${unit}`;
+        }
+      }
+
+      return 0;
+    }
+
     const frameProgress = animatedFrameIndex.value % 1;
 
     const from = Math.floor(animatedFrameIndex.value);
@@ -238,7 +283,10 @@ function useAnimation(
 
     const style: Record<string, unknown> = {};
 
-    for (const [key, toValue] of Object.entries(toStyles)) {
+    for (const entry of Object.entries(toStyles)) {
+      const key = entry[0] as keyof Style;
+      const toValue = entry[1];
+
       let fromValue = fromStyles[key];
 
       // If the current key is not in the from styles, try to find it in the previous styles
@@ -252,13 +300,20 @@ function useAnimation(
       }
 
       if (key === "transform") {
-        const fromTransform = fromValue as Record<string, unknown>;
-        const toTransform = toValue as Record<string, unknown>;
+        const fromTransform = Object.assign(
+          {},
+          defaultTransform,
+          ...($style.transform ?? []),
+          ...((fromValue as unknown as Record<string, unknown>[]) ?? [])
+        );
+
+        const toTransform = Object.assign(
+          {},
+          ...(toValue as Record<string, unknown>[])
+        );
 
         style[key] = transformKeys
-          .filter((key) => {
-            return key in fromTransform || key in toTransform;
-          })
+          .filter((key) => key in toTransform)
           .map((key) => {
             return {
               [key]: interpolateWithUnits(
@@ -280,9 +335,6 @@ function useAnimation(
 export function useTransitions(style: Style): StyleProp {
   const transition = styleMetaMap.get(style)?.transition;
 
-  const previous = useRef<Record<string, any>>({ ...style });
-
-  const dependencies: any[] = [];
   const numericTuples: any[] = [];
   const colorTuples: any[] = [];
   const properties = transition?.property || [];
@@ -294,10 +346,10 @@ export function useTransitions(style: Style): StyleProp {
     ] || { type: "milliseconds", value: 0 };
 
     switch (prop) {
-      // case "transform":
-      // case "translate":
-      // case "rotate":
-      // case "scale":
+      case "transform":
+      case "translate":
+      case "rotate":
+      case "scale":
       case "order":
         continue;
       case "borderBottomLeftRadius":
@@ -411,61 +463,23 @@ export function useTransitions(style: Style): StyleProp {
   }, [...numericTuples, ...colorTuples]);
 }
 
-function interpolateWithUnits(
-  progress: number,
-  from: unknown = 0,
-  to: unknown = 0
-) {
-  if (typeof from === "number" && typeof to === "number") {
-    return interpolate(progress, [0, 1], [from, to]);
-  } else if (
-    (typeof from === "string" && typeof to === "string") ||
-    (typeof from === "string" && to === 0)
-  ) {
-    const unit = from.match(/[a-z%]+$/)?.[0];
+const defaultTransform = {
+  perspective: 0,
+  translateX: 0,
+  translateY: 0,
+  scaleX: 0,
+  scaleY: 0,
+  rotate: 0,
+  rotateX: 0,
+  rotateY: 0,
+  rotateZ: 0,
+  skewX: 0,
+  skewY: 0,
+  scale: 0,
+};
+const transformKeys = Object.keys(defaultTransform);
 
-    if (unit) {
-      return `${interpolate(
-        progress,
-        [0, 1],
-        [Number.parseFloat(from), Number.parseFloat(to.toString())]
-      )}${unit}`;
-    }
-  } else if (typeof to === "string" && from === 0) {
-    const unit = to.match(/[a-z%]+$/)?.[0];
-
-    if (unit) {
-      return `${interpolate(
-        progress,
-        [0, 1],
-        [from, Number.parseFloat(to)]
-      )}${unit}`;
-    }
-  }
-
-  return 0;
-}
-
-const transformKeys = Object.keys({
-  perspective: 1,
-  translateX: 1,
-  translateY: 1,
-  scaleX: 1,
-  scaleY: 1,
-  rotate: 1,
-  rotateX: 1,
-  rotateY: 1,
-  rotateZ: 1,
-  skewX: 1,
-  skewY: 1,
-  scale: 1,
-});
-
-function getAnimationValue<T>(
-  array: T[] | undefined,
-  index: number,
-  defaultValue: T
-) {
+function getValue<T>(array: T[] | undefined, index: number, defaultValue: T) {
   if (!array) return defaultValue;
   return array[index % array.length];
 }

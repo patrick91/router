@@ -68,6 +68,7 @@ export interface ParseDeclarationOptions {
   addAnimationProp: AddAnimationDefaultProp;
   addContainerProp: AddContainerProp;
   addTransitionProp: AddTransitionProp;
+  requiresLayout: () => void;
 }
 
 export function parseDeclaration(
@@ -79,6 +80,7 @@ export function parseDeclaration(
     addAnimationProp,
     addContainerProp,
     addTransitionProp,
+    requiresLayout,
   } = options;
 
   if (declaration.property === "unparsed") {
@@ -1914,6 +1916,7 @@ function parseLengthOrCoercePercentageToRuntime(
   options: ParseDeclarationOptions
 ) {
   if (value.type === "percentage") {
+    options.requiresLayout();
     return {
       type: "runtime",
       name: runtimeName,

@@ -42,15 +42,15 @@ const parialStyleSheet = {
     colorScheme.reset(appearance);
   },
   register: (options: StyleSheetRegisterOptions) => {
-    if (options.declarations) {
-      for (const [name, styles] of Object.entries(options.declarations)) {
-        globalStyles.set(name, tagStyles(styles));
-      }
-    }
-
     if (options.keyframes) {
       for (const [name, keyframes] of Object.entries(options.keyframes)) {
         animationMap.set(name, keyframes);
+      }
+    }
+
+    if (options.declarations) {
+      for (const [name, styles] of Object.entries(options.declarations)) {
+        globalStyles.set(name, tagStyles(styles));
       }
     }
 
@@ -122,6 +122,15 @@ function tagStyles(styles: ExtractedStyle | ExtractedStyle[]): StyleProp {
     if (styles.animations) {
       meta.animations = styles.animations;
       hasMeta = true;
+
+      const requiresLayout = meta.animations.name?.some((nameObj) => {
+        const name = nameObj.type === "none" ? "none" : nameObj.value;
+        return animationMap.get(name)?.requiresLayout;
+      });
+
+      if (requiresLayout) {
+        meta.requiresLayout = true;
+      }
     }
 
     if (styles.container) {
@@ -139,6 +148,10 @@ function tagStyles(styles: ExtractedStyle | ExtractedStyle[]): StyleProp {
 
     if (styles.transition) {
       meta.transition = styles.transition;
+      hasMeta = true;
+    }
+    if (styles.requiresLayout) {
+      meta.requiresLayout = styles.requiresLayout;
       hasMeta = true;
     }
 

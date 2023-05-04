@@ -8,7 +8,7 @@ import {
 
 import {
   ContainerRuntime,
-  ExtractedKeyframe,
+  ExtractedAnimation,
   StyleMeta,
   StyleProp,
 } from "../../types";
@@ -19,7 +19,7 @@ export const styleMetaMap = new WeakMap<
   NonNullable<StyleProp> | NonNullable<StyleProp>[],
   StyleMeta
 >();
-export const animationMap = new Map<string, ExtractedKeyframe[]>();
+export const animationMap = new Map<string, ExtractedAnimation>();
 
 export const rem = createRem(14);
 export const vw = viewportUnit("width", Dimensions);

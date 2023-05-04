@@ -47,6 +47,7 @@ export type ExtractedStyle = {
   container?: Partial<ExtractedContainer>;
   containerQuery?: ExtractedContainerQuery[];
   transition?: ExtractedTransition;
+  requiresLayout?: boolean;
 };
 
 export type StyleMeta = {
@@ -59,6 +60,7 @@ export type StyleMeta = {
   container?: ExtractedContainer;
   containerQuery?: ExtractedContainerQuery[];
   transition?: ExtractedTransition;
+  requiresLayout?: boolean;
 };
 
 export interface SignalLike<T = unknown> {
@@ -120,6 +122,11 @@ export type ExtractedTransition = {
   timingFunction?: EasingFunction[];
 };
 
+export type ExtractedAnimation = {
+  frames: ExtractedKeyframe[];
+  requiresLayout?: boolean;
+};
+
 export type ExtractedKeyframe = {
   selector: number;
   style: Record<string, ExtractedStyleValue>;
@@ -133,7 +140,7 @@ export type PseudoClassesQuery = {
 
 export type StyleSheetRegisterOptions = {
   declarations?: Record<string, ExtractedStyle | ExtractedStyle[]>;
-  keyframes?: Record<string, ExtractedKeyframe[]>;
+  keyframes?: Record<string, ExtractedAnimation>;
 };
 
 export type Style = ViewStyle | TextStyle | ImageStyle;

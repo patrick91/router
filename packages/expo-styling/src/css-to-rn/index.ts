@@ -16,10 +16,10 @@ import {
 import { isRuntimeValue } from "../shared";
 import {
   ExtractedContainerQuery,
-  ExtractedKeyframe,
   ExtractedStyle,
   StyleSheetRegisterOptions,
   AnimatableCSSProperty,
+  ExtractedAnimation,
 } from "../types";
 import { ParseDeclarationOptions, parseDeclaration } from "./parseDeclaration";
 import { exhaustiveCheck, kebabToCamelCase } from "./utils";
@@ -37,7 +37,7 @@ export function cssToReactNativeRuntime(
   options: CssToReactNativeRuntimeOptions = {}
 ): StyleSheetRegisterOptions {
   const declarations = new Map<string, ExtractedStyle | ExtractedStyle[]>();
-  const keyframes = new Map<string, ExtractedKeyframe[]>();
+  const keyframes = new Map<string, ExtractedAnimation>();
 
   const grouping =
     options.grouping?.map((value) => {
@@ -70,7 +70,7 @@ interface ExtractRuleOptions {
   // The collection of declarations that have been extracted so far. This should be mutated
   declarations: Map<string, ExtractedStyle | ExtractedStyle[]>;
   // The collection animations declarations that have been extracted so far. This should be mutated
-  keyframes: Map<string, ExtractedKeyframe[]>;
+  keyframes: Map<string, ExtractedAnimation>;
   // Rules may be inside other rules, such as media queries.
   // We can build this this partial rule object as we traverse the tree
   style?: Partial<ExtractedStyle>;
@@ -392,10 +392,13 @@ function extractKeyFrames(
   extractOptions: ExtractRuleOptions,
   options: CssToReactNativeRuntimeOptions
 ) {
-  let frames: ExtractedKeyframe[] = [];
+  const extractedAnimation: ExtractedAnimation = { frames: [] };
+  const frames = extractedAnimation.frames;
 
   for (const frame of keyframes.keyframes) {
-    const { style } = getExtractedStyle(frame.declarations, options);
+    const { style } = getExtractedStyle(frame.declarations, {
+      ...options,
+    });
 
     for (const selector of frame.selectors) {
       const keyframe =
@@ -426,9 +429,15 @@ function extractKeyFrames(
       }
     }
   }
-  frames = frames.sort((a, b) => a.selector - b.selector);
 
-  extractOptions.keyframes.set(keyframes.name.value, frames);
+  // Ensure there are always two frames, a start and end
+  if (frames.length === 1) {
+    frames.push({ selector: 0, style: {} });
+  }
+
+  extractedAnimation.frames = frames.sort((a, b) => a.selector - b.selector);
+
+  extractOptions.keyframes.set(keyframes.name.value, extractedAnimation);
 }
 
 function getExtractedStyle(
@@ -654,12 +663,17 @@ function getExtractedStyle(
     }
   }
 
+  function requiresLayout() {
+    extrtactedStyle.requiresLayout = true;
+  }
+
   const parseDeclarationOptions: ParseDeclarationOptions = {
     ...options,
     addStyleProp,
     addAnimationProp,
     addContainerProp,
     addTransitionProp,
+    requiresLayout,
   };
 
   for (const declaration of declarationArray) {

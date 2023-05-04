@@ -11,6 +11,7 @@ export interface FlattenStyleOptions {
   variables: Record<string, any>;
   interaction: Interaction;
   containers: Record<string, any>;
+  syncOnly?: boolean;
 }
 
 /**
@@ -215,26 +216,35 @@ function extractValue(
 
           return undefined;
         };
-      case "ch":
-        return () => {
-          const multiplier = value.arguments[0] as number;
-
-          if (typeof flatStyle.height === "number") {
-            return round((flatStyle.height || 0) * multiplier);
-          }
-
-          return undefined;
-        };
-      case "cw":
-        return () => {
-          const multiplier = value.arguments[0] as number;
-
-          if (typeof flatStyle.width === "number") {
-            return round((flatStyle.width || 0) * multiplier);
-          }
-
-          return undefined;
-        };
+      case "_ch": {
+        const multiplier = value.arguments[0] as number;
+        if (options.syncOnly) {
+          console.warn(112, options.interaction.layout.height.get());
+          return round(options.interaction.layout.height.get() * multiplier);
+        } else {
+          return () => {
+            const reference =
+              typeof flatStyle.height === "number"
+                ? flatStyle.height
+                : options.interaction.layout.height.get();
+            return round(reference * multiplier);
+          };
+        }
+      }
+      case "_cw": {
+        const multiplier = value.arguments[0] as number;
+        if (options.syncOnly) {
+          return round(options.interaction.layout.width.get() * multiplier);
+        } else {
+          return () => {
+            const reference =
+              typeof flatStyle.width === "number"
+                ? flatStyle.width
+                : options.interaction.layout.width.get();
+            return round(reference * multiplier);
+          };
+        }
+      }
       case "var":
         return () => {
           const name = value.arguments[0] as string;

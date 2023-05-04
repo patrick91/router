@@ -92,6 +92,7 @@ const CSSInteropWrapper = React.forwardRef(function CSSInteropWrapper(
   const propEntries: [string, Style][] = [];
   const animatedProps: string[] = [];
   const transitionProps: string[] = [];
+  let requiresLayout = false;
 
   /* eslint-disable react-hooks/rules-of-hooks -- __styleKeys is immutable */
   for (const key of __styleKeys) {
@@ -116,6 +117,7 @@ const CSSInteropWrapper = React.forwardRef(function CSSInteropWrapper(
     if (meta?.variables) inlineVariables.push(meta.variables);
     if (meta?.animations) animatedProps.push(key);
     if (meta?.transition) transitionProps.push(key);
+    if (meta?.requiresLayout) requiresLayout = true;
     if (meta?.container) {
       if (meta.container.names) {
         for (const name of meta.container.names) {
@@ -153,7 +155,7 @@ const CSSInteropWrapper = React.forwardRef(function CSSInteropWrapper(
     useInteractionHandlers(
       $props,
       interaction,
-      inlineContainerValues.length > 0
+      requiresLayout || inlineContainerValues.length > 0
     )
   );
 
